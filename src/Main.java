@@ -1,96 +1,40 @@
 
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
 
 public class Main {
+    public static final File HOME = new File(System.getProperty("user.home"));
+    public static final File INPUT_FILE_DIR = new File(HOME,"Downloads\\SORS-2023");
+    public static final File OUTPUT_FILE = new File(HOME,"Downloads\\SORS-2023.txt");
 
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Auto-generated method stub
-        // TODO Auto-generated method stub
-        BufferedReader br = null;
-        FileReader fr = null;
-
-        try {
-            File[] files = new File("C:\\Reports\\SORS_Report\\ApriltoJune2020\\FileFTP").listFiles();
-            List<String> fileList = new ArrayList<String>();
-
-            for (File file : files) {
-                //System.out.println(file.getName());
-                if (file.isFile() && !file.getName().contains("NOEVENTS")) {
-                    fileList.add(file.getName());
-                }
-            }
-            String currentLine;
-            for (int i = 0; i < fileList.size(); i++) {
-                System.out.println(i+1 + " : "+ fileList.size());
-                BufferedReader extractedFileReader = new BufferedReader(
-                        new FileReader("C:\\Reports\\SORS_Report\\ApriltoJune2020\\FileFTP\\" + fileList.get(i)));
-                BufferedWriter tempFileWriter = new BufferedWriter(
-                        new FileWriter("C:\\Reports\\SORS_Report\\ApriltoJune2020\\TempFilesFTP\\" + fileList.get(i)));
-                String lineToRemove1 = "*";
-                String lineToRemove2 = "SORS";
-                //System.out.println(results.get(i));
-                while ((currentLine = extractedFileReader.readLine()) != null) {
-                    String trimmedLine = currentLine.trim();
-                    if (trimmedLine.contains(lineToRemove1) || trimmedLine.contains(lineToRemove2))
-                        continue;
-							/*String txnDateYear = trimmedLine.substring(53, 57);
-							if(txnDateYear.equals("2018"))
-								continue;
-							String txnDate = trimmedLine.substring(49, 53);
-							if (txnDate.equals("0403")||txnDate.equals("0404")||txnDate.equals("0405")||txnDate.equals("0406")||txnDate.equals("0407"))
-								continue;*/
-                    tempFileWriter.write(currentLine + System.getProperty("line.separator"));
-                    //System.out.println(currentLine);
-                    // for appending the file
-                    File finalTextFile = new File("C:\\Reports\\SORS_Report\\ApriltoJune2020\\ApriltoJune2020FTPRun.txt");
-                    FileWriter fWriter = new FileWriter(finalTextFile, true);
-                    BufferedWriter bWriter = new BufferedWriter(fWriter);
-                    PrintWriter pWriter = new PrintWriter(bWriter);
-                    pWriter.print(currentLine + System.getProperty("line.separator"));
-                    pWriter.close();
-                }
-
-                tempFileWriter.close();
-                extractedFileReader.close();
-
-            }
-
-            System.out.println("SORS Job Complete!");
-
-        } catch (IOException e) {
-
-            e.printStackTrace();
-
-        } finally {
-
-            try {
-
-                if (br != null)
-                    br.close();
-
-                if (fr != null)
-                    fr.close();
-
-            } catch (IOException ex) {
-
-                ex.printStackTrace();
-
-            }
-
+    public static File[] getFilesInDirectory(File dir) throws IOException {
+        File[] files = dir.listFiles();
+        if (files == null) {
+            throw new IOException("Not a directory or I/O error: " + dir);
         }
-
+        return files;
     }
 
+    public static void main(String[] args) {
+        try {
+            try (PrintWriter out = new PrintWriter(new FileWriter(OUTPUT_FILE))) {
+                File[] inputFiles = getFilesInDirectory(INPUT_FILE_DIR);
+                for (File inputFile : inputFiles) {
+                    if (inputFile.isFile() && !inputFile.getName().contains("NOEVENTS")) {
+                        try (BufferedReader reader = new BufferedReader(new FileReader(inputFile))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                String trimmedLine = line.trim();
+                                if (!trimmedLine.contains("*") && !trimmedLine.contains("SORS")) {
+                                    out.println(trimmedLine);
+                                }
+                            }
+                        }
+                    }
+                }
+                System.out.println("SORS job complete!");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
