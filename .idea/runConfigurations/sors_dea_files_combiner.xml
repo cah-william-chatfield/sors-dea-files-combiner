@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="sors-dea-files-combiner" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="Main" />
+    <module name="sors-dea-files-combiner" />
+    <option name="PROGRAM_PARAMETERS" value="&quot;C:\Users\william.chatfield\Downloads\SORS-2023&quot; &quot;C:\Users\william.chatfield\Downloads\SORS-2023.csv&quot;" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
