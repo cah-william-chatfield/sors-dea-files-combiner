@@ -1,5 +1,15 @@
+rem Load SORS DEA Transaction Data
+rem Author: Bill Chatfield
+
 rem Set this to the file you want to load.
-set FILE_TO_LOAD=%USERPROFILE%\Downloads\SORS-2023.csv
+set DEFAULT_FILE_TO_LOAD=%USERPROFILE%\OneDrive - Cardinal Health\Documents\SORS\Accrual Cycle Reports\DEA Transaction Data\Transaction.csv
+
+rem Use a command line argument, if one is given. Otherwise, use the default.
+if "%1"=="" (
+    set FILE_TO_LOAD=%DEFAULT_FILE_TO_LOAD%
+) else (
+    set FILE_TO_LOAD=%1
+)
 
 bq load ^
 	--source_format=CSV ^

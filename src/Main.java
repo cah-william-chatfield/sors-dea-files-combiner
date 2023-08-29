@@ -1,9 +1,11 @@
-
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -12,16 +14,27 @@ import java.util.stream.Stream;
  */
 public class Main {
 
+    public static final String SDK_BIN = "C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin";
+
     /**
      * Starts non-static context, checks command line arguments, handles exceptions
      * @param args Command line arguments
      */
     public static void main(String[] args) {
         try {
-            if (args.length == 2) {
-                new Main().combineFiles(args[0], args[1]);
+            if (args.length >= 2) {
+                String outputFileName = "Combined DEA Data.csv";
+                Main loader = new Main();
+                loader.combineFiles(outputFileName, args);
+                int exitCode = loader.load(outputFileName);
+                if (exitCode == 0) {
+                    System.out.println("SORS job complete!");
+                } else {
+                    System.err.println("SORS job failed. You may need to login using this command: gcloud auth login");
+                }
+                System.exit(exitCode);
             } else {
-                System.out.println("Usage: java -jar sors-dea-files-combiner.jar <input-file-dir> <output-file-name>");
+                System.out.println("Usage: java -jar sors-dea-files-combiner.jar <input-file-dir> ...");
                 System.exit(1);
             }
         } catch (Exception e) {
@@ -31,29 +44,31 @@ public class Main {
 
     /**
      * Combines files into one CSV file
-     * @param inputFileDir  Directory containing input files
+     * @param inputFileDirs Directory containing input files
      * @param outputFile    Where the output should go
-     * @throws java.io.IOException  If directory can't be opened and other possibilities from writeFile
+     * @throws IOException  If directory can't be opened and other possibilities from writeFile
      */
-    protected void combineFiles(String inputFileDir, String outputFile) throws java.io.IOException {
+    protected void combineFiles(String outputFile, String[] inputFileDirs) throws IOException {
+        System.out.printf("Combining files from directories %s into file %s%n", String.join(",", inputFileDirs), outputFile);
         try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(Path.of(outputFile)))) {        // Open output file
             out.println("registrant_dea,ndc,order_quantity,customer_dea,dea_form,transaction_date");   // Write headers
-            try (DirectoryStream<Path> inputFiles = Files.newDirectoryStream(Path.of(inputFileDir))) { // Get all input files
-                for (Path inputFile : inputFiles) {                                                    // Loop over all input files
-                    writeFile(out, inputFile);
+            for (String inputFileDir : inputFileDirs) {
+                try (DirectoryStream<Path> inputFiles = Files.newDirectoryStream(Path.of(inputFileDir))) { // Get all input files
+                    for (Path inputFile : inputFiles) {                                                    // Loop over all input files
+                        writeFile(out, inputFile);
+                    }
                 }
             }
         }
-        System.out.println("SORS job complete!");
     }
 
     /**
      * Writes a single file to the output, removing unneeded lines and columns, converting to CSV
      * @param out       Where the output goes
      * @param inputFile Where the input comes from
-     * @throws java.io.IOException  If the file cannot be opened and other possibilities from writeLine
+     * @throws IOException  If the file cannot be opened and other possibilities from writeLine
      */
-    protected void writeFile(PrintWriter out, Path inputFile) throws java.io.IOException {
+    protected void writeFile(PrintWriter out, Path inputFile) throws IOException {
         if (Files.isRegularFile(inputFile) && !inputFile.toString().contains("NOEVENTS")) { // Check file for correctness
             try (Stream<String> lines = Files.lines(inputFile)) {                           // Get all lines in file
                 writeLines(out, lines);
@@ -94,5 +109,29 @@ public class Main {
     protected void writeLine(PrintWriter out, String line) {
         String[] fields = line.split("\\|");
         out.printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"%n", fields[0], fields[3], fields[4], fields[6], fields[7], fields[8]);
+    }
+
+    protected ProcessBuilder appendToPath(ProcessBuilder pb, String dir) {
+        Map<String, String> env = pb.environment();
+        // Windows Path key could be any variation of letter case. But the Map.get method is case-sensitive.
+        // UNIX path could have multiple variables under different letter cases.
+        String pathKey = env.keySet().stream().filter(e -> e.equalsIgnoreCase("path")).sorted().toList().get(0);
+        String pathValue = env.get(pathKey);
+        String fixedPathValue = pathValue + File.pathSeparator + dir;
+        env.put(pathKey, fixedPathValue);
+        return pb;
+    }
+
+    protected int load(String fileToLoad) throws IOException, InterruptedException {
+        // TODO - Check if user is authenticated and if not run: gcloud auth login
+        System.out.printf("Loading data from file: %s%n", fileToLoad);
+        ProcessBuilder pb = new ProcessBuilder("cmd", "/c",
+                "bq", "load", "--source_format=CSV", "--replace=true",
+                "--skip_leading_rows=1", "edna-rsh-pqra-pr-cah:INJUNCTIVE_RELIEF.SORS_DEA_Transaction",
+                fileToLoad,
+                "registrant_dea:STRING,ndc:STRING,order_quantity:INTEGER,customer_dea:STRING," +
+                        "dea_form:STRING,transaction_date:STRING"
+        );
+        return appendToPath(pb, SDK_BIN).inheritIO().start().waitFor();
     }
 }
