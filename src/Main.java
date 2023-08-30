@@ -125,15 +125,16 @@ public class Main {
         out.printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"%n", fields[0], fields[3], fields[4], fields[6], fields[7], fields[8]);
     }
 
-    protected ProcessBuilder appendToPath(ProcessBuilder pb, String dir) {
+    protected ProcessBuilder appendToPath(ProcessBuilder pb, @SuppressWarnings("SameParameterValue") String dir) {
         Map<String, String> env = pb.environment();
         // Windows Path key could be any variation of letter case. But the Map.get method is case-sensitive.
         // UNIX path could have multiple variables under different letter cases.
+        @SuppressWarnings("SimplifyStreamApiCallChains")
         String pathKey = env.keySet()
         		.stream()
         		.filter(e -> e.equalsIgnoreCase("path"))
         		.sorted()
-        		.collect(toList())
+        		.collect(toList())  // Keeping this form for compatibility with old Eclipse running with Java 8
         		.get(0);
         String pathValue = env.get(pathKey);
         String fixedPathValue = pathValue + File.pathSeparator + dir;
