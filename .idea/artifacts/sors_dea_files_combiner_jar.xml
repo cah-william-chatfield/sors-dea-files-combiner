@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="sors-dea-files-combiner:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/sors_dea_files_combiner_jar</output-path>
+    <root id="archive" name="sors-dea-files-combiner.jar">
+      <element id="module-output" name="sors-dea-files-combiner" />
+    </root>
+  </artifact>
+</component>

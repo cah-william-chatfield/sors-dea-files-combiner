@@ -4,17 +4,28 @@ import java.io.PrintWriter;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Map;
+import static java.util.stream.Collectors.toList;
 import java.util.stream.Stream;
 
 /**
- * Creates one combined CSV file from all the SORS DEA data files.
+ * Creates one combined CSV file from all the SORS DEA data files and loads that CSV file.
  * @author william.chatfield
  */
 public class Main {
 
-    public static final String SDK_BIN = "C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin";
+    /**
+     * Needed to find the "bq" command used to load the data. This may need to be updated if GCP SDK/CLI is
+     * installed in a different location. Switching to the Java API would fix this problem.
+     */
+    public static final String GCP_SDK_BIN = "C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin";
+
+    /**
+     * This could be changed if the user doesn't have access to this area.
+     */
+    public static final String TABLE_TO_LOAD = "edna-rsh-pqra-pr-cah:INJUNCTIVE_RELIEF.SORS_DEA_Transaction";
 
     /**
      * Starts non-static context, checks command line arguments, handles exceptions
@@ -23,18 +34,9 @@ public class Main {
     public static void main(String[] args) {
         try {
             if (args.length >= 2) {
-                String outputFileName = "Combined DEA Data.csv";
-                Main loader = new Main();
-                loader.combineFiles(outputFileName, args);
-                int exitCode = loader.load(outputFileName);
-                if (exitCode == 0) {
-                    System.out.println("SORS job complete!");
-                } else {
-                    System.err.println("SORS job failed. You may need to login using this command: gcloud auth login");
-                }
-                System.exit(exitCode);
+                System.exit(new Main().combineAndLoad(args));
             } else {
-                System.out.println("Usage: java -jar sors-dea-files-combiner.jar <input-file-dir> ...");
+                System.out.println("Usage: java -jar sors-dea-files-combiner.jar <input-file-dir-1> <input-file-dir-2> ...");
                 System.exit(1);
             }
         } catch (Exception e) {
@@ -42,6 +44,18 @@ public class Main {
         }
     }
 
+    protected int combineAndLoad(String[] args) throws IOException, InterruptedException {
+        // TODO - Take zip files as input instead of unzipped directories to eliminate a step
+        String outputFileName = "Combined DEA Data.csv";
+        combineFiles(outputFileName, args);
+        int exitCode = load(outputFileName);
+        if (exitCode == 0) {
+            System.out.println("SORS job complete!");
+        } else {
+            System.err.println("SORS job failed. You may need to login using this command: gcloud auth login");
+        }
+        return exitCode;
+    }
     /**
      * Combines files into one CSV file
      * @param inputFileDirs Directory containing input files
@@ -49,12 +63,12 @@ public class Main {
      * @throws IOException  If directory can't be opened and other possibilities from writeFile
      */
     protected void combineFiles(String outputFile, String[] inputFileDirs) throws IOException {
-        System.out.printf("Combining files from directories %s into file %s%n", String.join(",", inputFileDirs), outputFile);
-        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(Path.of(outputFile)))) {        // Open output file
+        System.out.printf("Combining files from directories:%n%s%ninto file: %s%n", String.join("\n", inputFileDirs), outputFile);
+        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(Paths.get(outputFile)))) {      // Open output file
             out.println("registrant_dea,ndc,order_quantity,customer_dea,dea_form,transaction_date");   // Write headers
-            for (String inputFileDir : inputFileDirs) {
-                try (DirectoryStream<Path> inputFiles = Files.newDirectoryStream(Path.of(inputFileDir))) { // Get all input files
-                    for (Path inputFile : inputFiles) {                                                    // Loop over all input files
+            for (String inputFileDir : inputFileDirs) {                                                // Loop over all input dirs
+                try (DirectoryStream<Path> inputFiles = Files.newDirectoryStream(Paths.get(inputFileDir))) { // Get all input files
+                    for (Path inputFile : inputFiles) {                                                      // Loop over all input files
                         writeFile(out, inputFile);
                     }
                 }
@@ -115,7 +129,12 @@ public class Main {
         Map<String, String> env = pb.environment();
         // Windows Path key could be any variation of letter case. But the Map.get method is case-sensitive.
         // UNIX path could have multiple variables under different letter cases.
-        String pathKey = env.keySet().stream().filter(e -> e.equalsIgnoreCase("path")).sorted().toList().get(0);
+        String pathKey = env.keySet()
+        		.stream()
+        		.filter(e -> e.equalsIgnoreCase("path"))
+        		.sorted()
+        		.collect(toList())
+        		.get(0);
         String pathValue = env.get(pathKey);
         String fixedPathValue = pathValue + File.pathSeparator + dir;
         env.put(pathKey, fixedPathValue);
@@ -123,15 +142,30 @@ public class Main {
     }
 
     protected int load(String fileToLoad) throws IOException, InterruptedException {
+        // TODO - Switch to use Java API instead of calling out to "bq" command
         // TODO - Check if user is authenticated and if not run: gcloud auth login
         System.out.printf("Loading data from file: %s%n", fileToLoad);
-        ProcessBuilder pb = new ProcessBuilder("cmd", "/c",
-                "bq", "load", "--source_format=CSV", "--replace=true",
-                "--skip_leading_rows=1", "edna-rsh-pqra-pr-cah:INJUNCTIVE_RELIEF.SORS_DEA_Transaction",
-                fileToLoad,
-                "registrant_dea:STRING,ndc:STRING,order_quantity:INTEGER,customer_dea:STRING," +
-                        "dea_form:STRING,transaction_date:STRING"
+        // References:
+        // https://cloud.google.com/bigquery/docs/batch-loading-data#bq
+        // https://cloud.google.com/bigquery/docs/reference/bq-cli-reference#bq_load
+        ProcessBuilder pb = new ProcessBuilder(
+                "cmd.exe",    // Needed to run bq because bq is a command file, bq.cmd, not an executable
+                "/c",                    // Specifies that following params are interpreted as a command by cmd.exe
+                "bq",                    // Command to be run by cmd.exe, which is found in the Path
+                "load",                  // bq is to run its "load" command
+                "--source_format=CSV",   // The format of the file to be loaded is CSV
+                "--replace=true",        // Delete target table before loading
+                "--skip_leading_rows=1", // Skip over first row of source file, which is headers, not data
+                TABLE_TO_LOAD,           // The full name of the table where the data is to be loaded
+                fileToLoad,              // The source file
+                "registrant_dea:STRING," +           // Name and type of 1st field in source file & target table
+                        "ndc:STRING," +              // Name and type of 2nd field in source file & target table
+                        "order_quantity:INTEGER," +  // Name and type of 3rd field in source file & target table
+                        "customer_dea:STRING," +     // Name and type of 4th field in source file & target table
+                        "dea_form:STRING," +         // Name and type of 5th field in source file & target table
+                        "transaction_date:STRING"    // Name and type of 6th field in source file & target table
         );
-        return appendToPath(pb, SDK_BIN).inheritIO().start().waitFor();
+        // GCP_SDK_BIN must be in the path so that the "bq" command can be found
+        return appendToPath(pb, GCP_SDK_BIN).inheritIO().start().waitFor();
     }
 }

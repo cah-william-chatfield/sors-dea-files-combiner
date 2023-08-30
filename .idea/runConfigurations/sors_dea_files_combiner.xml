@@ -2,8 +2,7 @@
   <configuration default="false" name="sors-dea-files-combiner" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="Main" />
     <module name="sors-dea-files-combiner" />
-    <option name="PROGRAM_PARAMETERS" value="2021 2022 2023" />
-    <option name="WORKING_DIRECTORY" value="$USER_HOME$/OneDrive - Cardinal Health/Documents/SORS/Accrual Cycle Reports/DEA Transaction Data" />
+    <option name="PROGRAM_PARAMETERS" value="&quot;C:\Users\william.chatfield\OneDrive - Cardinal Health\Documents\SORS\Accrual Cycle Reports\DEA Transaction Data\2021&quot; &quot;C:\Users\william.chatfield\OneDrive - Cardinal Health\Documents\SORS\Accrual Cycle Reports\DEA Transaction Data\2022&quot; &quot;C:\Users\william.chatfield\OneDrive - Cardinal Health\Documents\SORS\Accrual Cycle Reports\DEA Transaction Data\2023&quot;" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
